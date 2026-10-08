@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FleetRoute-OCPI Console</title>
+<style>
+  :root {
+    --bg: #f4f6f9; --panel: #ffffff; --text: #1b2430; --muted: #66758a; --line: #dde3ec;
+    --accent: #0b6bcb; --ok: #1a8f4c; --warn: #c27a00; --bad: #c62f3b; --chip: #eaf1fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10161e; --panel: #18212c; --text: #e6ebf2; --muted: #93a1b5; --line: #2a3646;
+      --accent: #4d9bf0; --ok: #43c47a; --warn: #e4a53a; --bad: #ef6b75; --chip: #1f2d40;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .sp { flex: 1; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 6px; }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); }
+  main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px 20px; max-width: 1280px; margin: 0 auto; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card h2 { font-size: 14px; margin: 0 0 10px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
+  input, select { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text); font: inherit; }
+  button { padding: 8px 12px; border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 7px; font: inherit; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--accent); }
+  button.danger { background: var(--bad); border-color: var(--bad); }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin-top: 10px; }
+  .row > div { flex: 1; min-width: 110px; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .presets button { padding: 4px 8px; font-size: 12px; }
+  nav.tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  nav.tabs button { background: transparent; color: var(--muted); border-color: var(--line); }
+  nav.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+  .kpi { background: var(--chip); border-radius: 8px; padding: 10px 12px; }
+  .kpi small { color: var(--muted); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  .kpi b { font-size: 18px; }
+  .bar { height: 10px; background: var(--line); border-radius: 6px; overflow: hidden; margin-top: 6px; }
+  .bar i { display: block; height: 100%; background: var(--ok); }
+  .banner { padding: 10px 12px; border-radius: 8px; margin-top: 12px; border: 1px solid var(--line); }
+  .banner.ok { border-color: var(--ok); } .banner.bad { border-color: var(--bad); color: var(--bad); } .banner.warn { border-color: var(--warn); }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: var(--chip); }
+  .badge.AVAILABLE, .badge.ACTIVE, .badge.ACCEPTED { color: var(--ok); }
+  .badge.CHARGING, .badge.BLOCKED, .badge.SHIFTED { color: var(--warn); }
+  .badge.OUTOFORDER, .badge.CANCELLED, .badge.REBOOKED { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  th { color: var(--muted); font-weight: 500; }
+  details { margin-top: 12px; } summary { cursor: pointer; color: var(--muted); }
+  pre { background: var(--bg); border: 1px solid var(--line); padding: 10px; border-radius: 8px; overflow: auto; max-height: 280px; font-size: 12px; }
+  .log { margin-top: 12px; max-height: 220px; overflow: auto; font-size: 12px; color: var(--muted); }
+  .log div { padding: 3px 0; border-bottom: 1px dashed var(--line); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FleetRoute-OCPI Console</h1>
+  <span><span id="dot" class="dot"></span><span id="health">checking…</span></span>
+  <span id="source" class="badge">data: –</span>
+  <span id="summary" class="badge">stations: –</span>
+  <span class="sp"></span>
+  <label style="margin:0;display:flex;gap:6px;align-items:center"><input id="autoref" type="checkbox" style="width:auto" checked> Live refresh (3 s)</label>
+</header>
+
+<div id="fatal" class="banner bad hidden" style="margin:16px 20px"></div>
+<main>
+  <section class="card">
+    <h2>Truck telemetry</h2>
+    <div class="presets" id="presets"></div>
+    <label>Latitude</label><input id="lat" type="number" step="any" value="48.1">
+    <label>Longitude</label><input id="lon" type="number" step="any" value="11.6">
+    <label>Battery SoC (%)</label><input id="soc" type="number" step="any" value="80" min="0" max="100">
+    <label>Consumption (kWh/km)</label><input id="cons" type="number" step="any" value="1.2">
+    <label>Battery capacity (kWh)</label><input id="cap" type="number" step="any" value="300">
+    <div class="kpi" style="margin-top:12px"><small>Estimated max range</small><b id="range">–</b></div>
+  </section>
+
+  <section>
+    <nav class="tabs" id="tabs">
+      <button data-tab="reroute" class="on">Reroute</button>
+      <button data-tab="auto">Reservation &amp; auto-reroute</button>
+      <button data-tab="board">Station board</button>
+      <button data-tab="smart">Smart charging</button>
+    </nav>
+
+    <div class="card" id="tab-reroute">
+      <h2>POST /api/v1/reroute</h2>
+      <button id="btn-reroute">Find best charger</button>
+      <div id="out-reroute"></div>
+    </div>
+
+    <div class="card hidden" id="tab-auto">
+      <h2>Reservations and POST /api/v1/reroute/auto</h2>
+      <div class="row">
+        <div><label>Reservation ID</label><input id="res-id" value="RES_1"></div>
+        <div><label>Station</label><select id="res-station"></select></div>
+        <div><label>Reported delay (min)</label><input id="delay" type="number" min="0" max="1440" value="0"></div>
+      </div>
+      <div class="row">
+        <button id="btn-create">1. Create reservation</button>
+        <button id="btn-auto">2. Run auto-reroute</button>
+        <button id="btn-shift" class="ghost">PATCH shift +15 min</button>
+        <button id="btn-cancel" class="danger">PATCH cancel</button>
+      </div>
+      <p style="color:var(--muted);margin:10px 0 0">Tip: run the simulator, create a reservation, wait until its station goes OUTOFORDER or BLOCKED, then run auto-reroute. Or enter a delay above 60 minutes to force a rebook.</p>
+      <div id="out-auto"></div>
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="card hidden" id="tab-board">
+      <h2>GET /api/v1/locations and /api/v1/status/evses/{uid}</h2>
+      <button id="btn-board">Refresh now</button> <span id="board-time" style="color:var(--muted);margin-left:8px"></span>
+      <div id="out-board"></div>
+    </div>
+
+    <div class="card hidden" id="tab-smart">
+      <h2>POST /api/v1/smart-charging/profile</h2>
+      <div class="row">
+        <div><label>Target station (must be CHARGING)</label><select id="sc-station"></select></div>
+        <div><label>Unit</label><select id="sc-unit"><option>W</option><option>A</option></select></div>
+        <div><label>Limit</label><input id="sc-limit" type="number" min="0" value="100000"></div>
+      </div>
+      <div class="row"><button id="btn-smart">Request curtailment</button></div>
+      <div id="out-smart"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+// When the page is opened directly from disk, talk to the local backend explicitly.
+const BASE = location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
+const API = BASE + "/api/v1";
+const STATIONS = [
+  ["LOC_MUNICH_SOUTH", "EVSE_MUN_1", "Munich South"],
+  ["LOC_STUTTGART_EAST", "EVSE_STR_1", "Stuttgart East"],
+  ["LOC_FRANKFURT_AIRPORT", "EVSE_FRA_1", "Frankfurt Airport"],
+  ["LOC_NUREMBERG_HUB", "EVSE_NUR_1", "Nuremberg Hub"],
+  ["LOC_ULM_NORTH", "EVSE_ULM_1", "Ulm North"],
+  ["LOC_AUGSBURG_WEST", "EVSE_AUG_1", "Augsburg West"],
+  ["LOC_INGOLSTADT_HUB", "EVSE_ING_1", "Ingolstadt Hub"],
+  ["LOC_REGENSBURG_EAST", "EVSE_REG_1", "Regensburg East"],
+  ["LOC_KARLSRUHE_PORT", "EVSE_KAR_1", "Karlsruhe Port"],
+  ["LOC_HEIDELBERG_SOUTH", "EVSE_HEI_1", "Heidelberg South"],
+];
+const PRESETS = [["Near Munich", 48.1, 11.6, 80], ["Near Stuttgart", 48.7, 9.2, 70], ["Near Frankfurt", 50.0, 8.5, 60], ["Low battery", 48.1, 11.6, 12]];
+
+const $ = (id) => document.getElementById(id);
+
+// Shows any unexpected script error on the page instead of failing silently.
+window.addEventListener("error", (e) => {
+  const box = $("fatal");
+  box.classList.remove("hidden");
+  box.textContent = "Script error: " + e.message;
+});
+
+// Escapes text before it is inserted into HTML.
+function esc(v) {
+  return String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Calls the backend and returns { ok, status, data } without ever throwing.
+async function api(method, path, body) {
+  try {
+    const res = await fetch(API + path, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    return { ok: res.ok, status: res.status, data };
+  } catch (err) {
+    return { ok: false, status: 0, data: { detail: "Cannot reach the backend: " + err.message } };
+  }
+}
+
+// Reads the truck form into the TruckStatus payload.
+function truck() {
+  return {
+    latitude: parseFloat($("lat").value),
+    longitude: parseFloat($("lon").value),
+    battery_percentage: parseFloat($("soc").value),
+    consumption_rate: parseFloat($("cons").value),
+    full_capacity_kwh: parseFloat($("cap").value),
+  };
+}
+
+// Shows the estimated maximum range for the current truck inputs.
+function updateRange() {
+  const t = truck();
+  const r = (t.battery_percentage / 100) * t.full_capacity_kwh / t.consumption_rate;
+  $("range").textContent = isFinite(r) ? r.toFixed(1) + " km" : "–";
+}
+
+// Formats an API error (string or FastAPI validation list) as a banner.
+function errorBanner(res) {
+  let d = res.data && res.data.detail;
+  if (Array.isArray(d)) d = d.map((e) => (e.loc || []).slice(1).join(".") + ": " + e.msg).join("; ");
+  return `<div class="banner bad"><b>HTTP ${res.status || "error"}</b> — ${esc(d || "Request failed")}</div>`;
+}
+
+// Renders a collapsible raw JSON view.
+function rawJson(data) {
+  return `<details><summary>Raw JSON response</summary><pre>${esc(JSON.stringify(data, null, 2))}</pre></details>`;
+}
+
+// Renders a KPI tile.
+function kpi(label, value) {
+  return `<div class="kpi"><small>${esc(label)}</small><b>${esc(value)}</b></div>`;
+}
+
+// Appends a line to the action log of the reservation tab.
+function log(text) {
+  const d = document.createElement("div");
+  d.textContent = new Date().toLocaleTimeString() + "  " + text;
+  $("log").prepend(d);
+}
+
+// Renders a reservation summary line.
+function resLine(r) {
+  const s = r.booking_slot;
+  return `<div><b>${esc(r.reservation_id)}</b> <span class="badge ${esc(r.status)}">${esc(r.status)}</span> ${esc(r.location_id)} / ${esc(r.evse_uid)}<br>
+    <span style="color:var(--muted)">${esc(new Date(s.arrival_time).toLocaleString())} → ${esc(new Date(s.expiry_date).toLocaleString())}</span></div>`;
+}
+
+async function doReroute() {
+  const res = await api("POST", "/reroute", truck());
+  if (!res.ok) { $("out-reroute").innerHTML = errorBanner(res); return; }
+  const d = res.data, s = d.recommended_charging_station, t = d.truck_summary;
+  const soc = Math.max(0, Math.min(100, t.estimated_battery_at_arrival));
+  $("out-reroute").innerHTML = `
+    <div class="banner ok">${esc(d.message)}</div>
+    <div class="grid">
+      ${kpi("Station", s.station_name)}${kpi("Station ID", s.station_id)}${kpi("EVSE", s.evse_uid)}
+      ${kpi("Power", s.max_power_kw + " kW")}${kpi("Distance", s.distance_km + " km")}
+      ${kpi("Current range", t.current_range_km + " km")}${kpi("SoC on arrival", t.estimated_battery_at_arrival + " %")}
+    </div>
+    <div class="bar"><i style="width:${soc}%"></i></div>${rawJson(d)}`;
+}
+
+async function createReservation() {
+  const [loc, evse] = $("res-station").value.split("|");
+  const start = new Date(Date.now() + 3600e3), end = new Date(Date.now() + 2 * 3600e3);
+  const res = await api("POST", "/reservations/" + encodeURIComponent($("res-id").value), {
+    location_id: loc, evse_uid: evse, truck_id: "TRUCK_1",
+    booking_slot: { arrival_time: start.toISOString(), expiry_date: end.toISOString() },
+  });
+  if (!res.ok) { $("out-auto").innerHTML = errorBanner(res); log("create failed: HTTP " + res.status); return; }
+  $("out-auto").innerHTML = `<div class="banner ok">Reservation created</div><div class="banner">${resLine(res.data)}</div>${rawJson(res.data)}`;
+  log("created " + res.data.reservation_id + " at " + loc);
+}
+
+async function patchReservation(body, label) {
+  const res = await api("PATCH", "/reservations/" + encodeURIComponent($("res-id").value), body);
+  if (!res.ok) { $("out-auto").innerHTML = errorBanner(res); log(label + " failed: HTTP " + res.status); return; }
+  $("out-auto").innerHTML = `<div class="banner ok">${esc(label)}</div><div class="banner">${resLine(res.data)}</div>${rawJson(res.data)}`;
+  log(label + " → " + res.data.status);
+}
+
+async function runAuto() {
+  const res = await api("POST", "/reroute/auto", {
+    truck: truck(), reservation_id: $("res-id").value, delay_minutes: parseInt($("delay").value || "0", 10),
+  });
+  if (!res.ok) { $("out-auto").innerHTML = errorBanner(res); log("auto failed: HTTP " + res.status); return; }
+  const d = res.data, s = d.charging_station;
+  const reasons = d.conflict_reasons.length ? d.conflict_reasons.map((r) => `<span class="badge">${esc(r)}</span>`).join(" ") : "none";
+  $("out-auto").innerHTML = `
+    <div class="banner ${d.action === "REBOOKED" ? "warn" : "ok"}"><span class="badge ${esc(d.action)}">${esc(d.action)}</span> ${esc(d.message)}</div>
+    <div class="grid">
+      ${kpi("Conflict", d.conflict_detected ? "YES" : "no")}${kpi("Station", s.station_name)}${kpi("Power", s.max_power_kw + " kW")}
+      ${kpi("Distance", s.distance_km + " km")}${kpi("SoC on arrival", d.truck_summary.estimated_battery_at_arrival + " %")}
+    </div>
+    <p>Reasons: ${reasons}</p>
+    <table><tr><th></th><th>Reservation</th></tr>
+      <tr><td>Previous</td><td>${resLine(d.previous_reservation)}</td></tr>
+      <tr><td>Active</td><td>${resLine(d.active_reservation)}</td></tr></table>${rawJson(d)}`;
+  log("auto-reroute → " + d.action + " (" + d.active_reservation.reservation_id + ")");
+  if (d.action === "REBOOKED") $("res-id").value = d.active_reservation.reservation_id;
+}
+
+let lastBoard = null;
+
+// Fetches locations and every EVSE status once.
+async function loadBoard() {
+  const t = truck();
+  const q = `?latitude=${t.latitude}&longitude=${t.longitude}&radius_km=2000`;
+  const [locs, ...statuses] = await Promise.all([
+    api("GET", "/locations" + q),
+    ...STATIONS.map((s) => api("GET", "/status/evses/" + s[1])),
+  ]);
+  const byLoc = {};
+  if (locs.ok) locs.data.forEach((l) => { byLoc[l.location_id] = l; });
+  lastBoard = STATIONS.map((s, i) => ({ s, st: statuses[i], l: byLoc[s[0]] }));
+  return lastBoard;
+}
+
+// Renders the header summary with a count per status.
+function renderSummary(board) {
+  const counts = {};
+  board.forEach(({ st }) => { const k = st.ok ? st.data.status : "ERROR"; counts[k] = (counts[k] || 0) + 1; });
+  $("summary").textContent = Object.keys(counts).sort().map((k) => k + " " + counts[k]).join(" · ");
+}
+
+// Renders the station table.
+function renderBoard(board) {
+  const rows = board.map(({ s, st, l }) => {
+    const stat = st.ok ? st.data.status : "ERROR";
+    return `<tr><td>${esc(s[2])}</td><td>${esc(s[1])}</td><td><span class="badge ${esc(stat)}">${esc(stat)}</span></td>
+      <td>${l ? esc(l.max_power_kw) + " kW" : "–"}</td><td>${l ? esc(l.distance_km) + " km" : "–"}</td>
+      <td>${st.ok ? esc(new Date(st.data.last_updated).toLocaleTimeString()) : "–"}</td></tr>`;
+  }).join("");
+  $("out-board").innerHTML = `<table><tr><th>Station</th><th>EVSE</th><th>Status</th><th>Power</th><th>Distance</th><th>Updated</th></tr>${rows}</table>`;
+  $("board-time").textContent = "refreshed " + new Date().toLocaleTimeString();
+}
+
+// Reloads the data and updates the summary and, when visible, the board.
+async function refreshBoard() {
+  const board = await loadBoard();
+  renderSummary(board);
+  renderBoard(board);
+}
+
+// Background poll: keeps the header summary live on every tab.
+async function pollLive() {
+  if (!$("autoref").checked) return;
+  const board = await loadBoard();
+  renderSummary(board);
+  if (!$("tab-board").classList.contains("hidden")) renderBoard(board);
+}
+
+async function doSmart() {
+  const [loc, evse] = $("sc-station").value.split("|");
+  const res = await api("POST", "/smart-charging/profile", {
+    location_id: loc, evse_uid: evse, requesting_truck_id: "TRUCK_1",
+    charging_profile: { charging_rate_unit: $("sc-unit").value, charging_profile_period: [{ start_period: 0, limit: parseFloat($("sc-limit").value) }] },
+  });
+  if (!res.ok) { $("out-smart").innerHTML = errorBanner(res); return; }
+  const d = res.data;
+  const pct = d.original_max_power_kw ? (d.curtailed_max_power_kw / d.original_max_power_kw) * 100 : 0;
+  $("out-smart").innerHTML = `
+    <div class="banner ok"><span class="badge ACCEPTED">${esc(d.status)}</span> ${esc(d.message)}</div>
+    <div class="grid">${kpi("Original", d.original_max_power_kw + " kW")}${kpi("Curtailed to", d.curtailed_max_power_kw + " kW")}${kpi("Freed", d.freed_capacity_kw + " kW")}</div>
+    <div class="bar"><i style="width:${pct}%"></i></div>${rawJson(d)}`;
+}
+
+// Checks the backend health and which data file it is reading.
+async function checkHealth() {
+  try {
+    const r = await fetch(BASE + "/health");
+    $("dot").className = "dot " + (r.ok ? "ok" : "bad");
+    $("health").textContent = r.ok ? "backend online" : "backend error";
+    const d = await fetch(BASE + "/health/data");
+    const src = $("source");
+    if (d.ok) {
+      const info = await d.json();
+      src.textContent = "data: " + info.data_file + " · file updated " + new Date(info.last_modified).toLocaleTimeString();
+      src.style.color = info.is_live ? "var(--ok)" : "var(--warn)";
+      src.title = info.is_live ? "Reading the live simulator file" : "Reading the static file: set OCPI_DATA_FILE to data\\OCPI_data.live.json and restart the server to see simulator changes";
+    } else {
+      src.textContent = "data: unavailable";
+      src.style.color = "var(--bad)";
+    }
+  } catch (e) {
+    $("dot").className = "dot bad";
+    $("health").textContent = "backend offline";
+  }
+}
+
+// Wires up the UI.
+function init() {
+  const options = STATIONS.map((s) => `<option value="${s[0]}|${s[1]}">${s[2]} (${s[1]})</option>`).join("");
+  $("res-station").innerHTML = options;
+  $("sc-station").innerHTML = options;
+  $("sc-station").value = "LOC_AUGSBURG_WEST|EVSE_AUG_1";
+  PRESETS.forEach((p) => {
+    const b = document.createElement("button");
+    b.className = "ghost"; b.textContent = p[0];
+    b.onclick = () => { $("lat").value = p[1]; $("lon").value = p[2]; $("soc").value = p[3]; updateRange(); };
+    $("presets").appendChild(b);
+  });
+  ["lat", "lon", "soc", "cons", "cap"].forEach((id) => $(id).addEventListener("input", updateRange));
+  document.querySelectorAll("#tabs button").forEach((b) => {
+    b.onclick = () => {
+      document.querySelectorAll("#tabs button").forEach((x) => x.classList.toggle("on", x === b));
+      ["reroute", "auto", "board", "smart"].forEach((t) => $("tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
+      if (b.dataset.tab === "board") refreshBoard();
+    };
+  });
+  $("btn-reroute").onclick = doReroute;
+  $("btn-create").onclick = createReservation;
+  $("btn-auto").onclick = runAuto;
+  $("btn-shift").onclick = () => patchReservation({ delay_minutes: 15 }, "Shifted +15 min");
+  $("btn-cancel").onclick = () => patchReservation({ status: "CANCELLED" }, "Cancelled");
+  $("btn-board").onclick = refreshBoard;
+  $("btn-smart").onclick = doSmart;
+  setInterval(pollLive, 3000);
+  setInterval(checkHealth, 3000);
+  updateRange(); checkHealth(); refreshBoard();
+}
+init();
+</script>
+</body>
+</html>
