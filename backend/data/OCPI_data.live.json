@@ -1,0 +1,404 @@
+[
+  {
+    "country_code": "DE",
+    "party_id": "FRY",
+    "id": "LOC_MUNICH_SOUTH",
+    "publish": true,
+    "name": "Munich South Truck Charging Hub",
+    "address": "A8 Highway, Exit 94",
+    "city": "Munich",
+    "postal_code": "81829",
+    "country": "DEU",
+    "coordinates": {
+      "latitude": "48.065100",
+      "longitude": "11.622000"
+    },
+    "evses": [
+      {
+        "uid": "EVSE_MUN_1",
+        "evse_id": "DE*FRY*EMUN1",
+        "status": "CHARGING",
+        "capabilities": [
+          "REMOTE_START_STOP_CAPABLE",
+          "RESERVABLE"
+        ],
+        "connectors": [
+          {
+            "id": "1",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 800,
+            "max_amperage": 400,
+            "max_electric_power": 320000,
+            "last_updated": "2026-10-06T14:22:00Z"
+          }
+        ],
+        "last_updated": "2026-10-08T12:46:34Z"
+      }
+    ],
+    "time_zone": "Europe/Berlin",
+    "last_updated": "2026-10-08T12:46:34Z"
+  },
+  {
+    "country_code": "DE",
+    "party_id": "FRY",
+    "id": "LOC_STUTTGART_EAST",
+    "publish": true,
+    "name": "Stuttgart Logistics Charging Park",
+    "address": "Industriestrasse 12",
+    "city": "Stuttgart",
+    "postal_code": "70565",
+    "country": "DEU",
+    "coordinates": {
+      "latitude": "48.775800",
+      "longitude": "9.182900"
+    },
+    "evses": [
+      {
+        "uid": "EVSE_STR_1",
+        "evse_id": "DE*FRY*ESTR1",
+        "status": "AVAILABLE",
+        "capabilities": [
+          "REMOTE_START_STOP_CAPABLE",
+          "RESERVABLE"
+        ],
+        "connectors": [
+          {
+            "id": "1",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 1000,
+            "max_amperage": 400,
+            "max_electric_power": 400000,
+            "last_updated": "2026-10-06T15:10:00Z"
+          }
+        ],
+        "last_updated": "2026-10-08T12:46:52Z"
+      }
+    ],
+    "time_zone": "Europe/Berlin",
+    "last_updated": "2026-10-08T12:46:52Z"
+  },
+  {
+    "country_code": "DE",
+    "party_id": "FRY",
+    "id": "LOC_FRANKFURT_AIRPORT",
+    "publish": true,
+    "name": "Frankfurt CargoCity South Hub",
+    "address": "CargoCenter, Gate 31",
+    "city": "Frankfurt",
+    "postal_code": "60549",
+    "country": "DEU",
+    "coordinates": {
+      "latitude": "50.026400",
+      "longitude": "8.543200"
+    },
+    "evses": [
+      {
+        "uid": "EVSE_FRA_1",
+        "evse_id": "DE*FRY*EFRA1",
+        "status": "CHARGING",
+        "capabilities": [
+          "REMOTE_START_STOP_CAPABLE"
+        ],
+        "connectors": [
+          {
+            "id": "1",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 800,
+            "max_amperage": 300,
+            "max_electric_power": 240000,
+            "last_updated": "2026-10-06T18:00:00Z"
+          }
+        ],
+        "last_updated": "2026-10-08T12:46:55Z"
+      }
+    ],
+    "time_zone": "Europe/Berlin",
+    "last_updated": "2026-10-08T12:46:55Z"
+  },
+  {
+    "country_code": "DE",
+    "party_id": "FRY",
+    "id": "LOC_NUREMBERG_HUB",
+    "publish": true,
+    "name": "Nuremberg Freight Valley EV-Station",
+    "address": "Hamburger Strasse 5",
+    "city": "Nuremberg",
+    "postal_code": "90402",
+    "country": "DEU",
+    "coordinates": {
+      "latitude": "49.444200",
+      "longitude": "11.060600"
+    },
+    "evses": [
+      {
+        "uid": "EVSE_NUR_1",
+        "evse_id": "DE*FRY*ENUR1",
+        "status": "CHARGING",
+        "capabilities": [
+          "REMOTE_START_STOP_CAPABLE",
+          "RESERVABLE"
+        ],
+        "connectors": [
+          {
+            "id": "1",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 800,
+            "max_amperage": 200,
+            "max_electric_power": 160000,
+            "last_updated": "2026-10-06T19:30:00Z"
+          }
+        ],
+        "last_updated": "2026-10-08T12:46:52Z"
+      }
+    ],
+    "time_zone": "Europe/Berlin",
+    "last_updated": "2026-10-08T12:46:52Z"
+  },
+  {
+    "country_code": "DE",
+    "party_id": "FRY",
+    "id": "LOC_ULM_NORTH",
+    "publish": true,
+    "name": "Ulm Container Terminal Power Charging",
+    "address": "A7 Highway, Exit 122",
+    "city": "Ulm",
+    "postal_code": "89073",
+    "country": "DEU",
+    "coordinates": {
+      "latitude": "48.425500",
+      "longitude": "9.957500"
+    },
+    "evses": [
+      {
+        "uid": "EVSE_ULM_1",
+        "evse_id": "DE*FRY*EULM1",
+        "status": "OUTOFORDER",
+        "capabilities": [
+          "REMOTE_START_STOP_CAPABLE",
+          "RESERVABLE"
+        ],
+        "connectors": [
+          {
+            "id": "1",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 900,
+            "max_amperage": 350,
+            "max_electric_power": 315000,
+            "last_updated": "2026-10-06T20:00:00Z"
+          }
+        ],
+        "last_updated": "2026-10-08T12:46:49Z"
+      }
+    ],
+    "time_zone": "Europe/Berlin",
+    "last_updated": "2026-10-08T12:46:49Z"
+  },
+  {
+    "country_code": "DE",
+    "party_id": "FRY",
+    "id": "LOC_AUGSBURG_WEST",
+    "publish": true,
+    "name": "Augsburg Logistics Node Charging",
+    "address": "Berliner Allee 40",
+    "city": "Augsburg",
+    "postal_code": "86153",
+    "country": "DEU",
+    "coordinates": {
+      "latitude": "48.366500",
+      "longitude": "10.900100"
+    },
+    "evses": [
+      {
+        "uid": "EVSE_AUG_1",
+        "evse_id": "DE*FRY*EAUG1",
+        "status": "CHARGING",
+        "capabilities": [
+          "REMOTE_START_STOP_CAPABLE"
+        ],
+        "connectors": [
+          {
+            "id": "1",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 800,
+            "max_amperage": 400,
+            "max_electric_power": 320000,
+            "last_updated": "2026-10-06T20:15:00Z"
+          }
+        ],
+        "last_updated": "2026-10-08T12:46:34Z"
+      }
+    ],
+    "time_zone": "Europe/Berlin",
+    "last_updated": "2026-10-08T12:46:34Z"
+  },
+  {
+    "country_code": "DE",
+    "party_id": "FRY",
+    "id": "LOC_INGOLSTADT_HUB",
+    "publish": true,
+    "name": "Ingolstadt eTruck Station",
+    "address": "Audi Boulevard 1",
+    "city": "Ingolstadt",
+    "postal_code": "85057",
+    "country": "DEU",
+    "coordinates": {
+      "latitude": "48.766500",
+      "longitude": "11.425800"
+    },
+    "evses": [
+      {
+        "uid": "EVSE_ING_1",
+        "evse_id": "DE*FRY*EING1",
+        "status": "AVAILABLE",
+        "capabilities": [
+          "REMOTE_START_STOP_CAPABLE",
+          "RESERVABLE"
+        ],
+        "connectors": [
+          {
+            "id": "1",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 800,
+            "max_amperage": 250,
+            "max_electric_power": 200000,
+            "last_updated": "2026-10-06T20:30:00Z"
+          }
+        ],
+        "last_updated": "2026-10-08T12:46:55Z"
+      }
+    ],
+    "time_zone": "Europe/Berlin",
+    "last_updated": "2026-10-08T12:46:55Z"
+  },
+  {
+    "country_code": "DE",
+    "party_id": "FRY",
+    "id": "LOC_REGENSBURG_EAST",
+    "publish": true,
+    "name": "Regensburg Highway Hub",
+    "address": "A3 Logistics Park",
+    "city": "Regensburg",
+    "postal_code": "93059",
+    "country": "DEU",
+    "coordinates": {
+      "latitude": "49.013400",
+      "longitude": "12.101600"
+    },
+    "evses": [
+      {
+        "uid": "EVSE_REG_1",
+        "evse_id": "DE*FRY*EREG1",
+        "status": "AVAILABLE",
+        "capabilities": [],
+        "connectors": [
+          {
+            "id": "1",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 800,
+            "max_amperage": 200,
+            "max_electric_power": 160000,
+            "last_updated": "2026-10-06T12:00:00Z"
+          }
+        ],
+        "last_updated": "2026-10-08T12:46:43Z"
+      }
+    ],
+    "time_zone": "Europe/Berlin",
+    "last_updated": "2026-10-08T12:46:43Z"
+  },
+  {
+    "country_code": "DE",
+    "party_id": "FRY",
+    "id": "LOC_KARLSRUHE_PORT",
+    "publish": true,
+    "name": "Karlsruhe Rhine Port Charging",
+    "address": "Rheinstrasse 88",
+    "city": "Karlsruhe",
+    "postal_code": "76185",
+    "country": "DEU",
+    "coordinates": {
+      "latitude": "49.006900",
+      "longitude": "8.403700"
+    },
+    "evses": [
+      {
+        "uid": "EVSE_KAR_1",
+        "evse_id": "DE*FRY*EKAR1",
+        "status": "AVAILABLE",
+        "capabilities": [
+          "REMOTE_START_STOP_CAPABLE",
+          "RESERVABLE"
+        ],
+        "connectors": [
+          {
+            "id": "1",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 1000,
+            "max_amperage": 350,
+            "max_electric_power": 350000,
+            "last_updated": "2026-10-06T20:45:00Z"
+          }
+        ],
+        "last_updated": "2026-10-08T12:46:43Z"
+      }
+    ],
+    "time_zone": "Europe/Berlin",
+    "last_updated": "2026-10-08T12:46:43Z"
+  },
+  {
+    "country_code": "DE",
+    "party_id": "FRY",
+    "id": "LOC_HEIDELBERG_SOUTH",
+    "publish": true,
+    "name": "Heidelberg Freight Depot",
+    "address": "A5 Highway Exit",
+    "city": "Heidelberg",
+    "postal_code": "69115",
+    "country": "DEU",
+    "coordinates": {
+      "latitude": "49.407700",
+      "longitude": "8.690800"
+    },
+    "evses": [
+      {
+        "uid": "EVSE_HEI_1",
+        "evse_id": "DE*FRY*EHEI1",
+        "status": "AVAILABLE",
+        "capabilities": [],
+        "connectors": [
+          {
+            "id": "1",
+            "standard": "IEC_62196_T2_COMBO",
+            "format": "CABLE",
+            "power_type": "DC",
+            "max_voltage": 800,
+            "max_amperage": 300,
+            "max_electric_power": 240000,
+            "last_updated": "2026-10-06T20:50:00Z"
+          }
+        ],
+        "last_updated": "2026-10-08T12:46:52Z"
+      }
+    ],
+    "time_zone": "Europe/Berlin",
+    "last_updated": "2026-10-08T12:46:52Z"
+  }
+]
