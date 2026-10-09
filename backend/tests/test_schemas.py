@@ -3,6 +3,8 @@ from factories import make_connector, make_evse, make_location
 from pydantic import ValidationError
 from schemas import (
     OCPIEVSE,
+    AutoAction,
+    AutoRerouteRequest,
     BookingSlot,
     Capability,
     ChargingProfile,
@@ -11,6 +13,8 @@ from schemas import (
     GeoLocation,
     OCPIConnector,
     OCPILocation,
+    ReservationCreate,
+    ReservationReplace,
     ReservationUpdate,
     TruckStatus,
 )
@@ -318,3 +322,48 @@ def test_reservation_update_invalid_values(payload):
 def test_charging_profile_invalid(payload):
     with pytest.raises(ValidationError):
         ChargingProfile(**payload)
+
+# New reservation telemetry fields reject out-of-range values.
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"battery_percentage": -1},
+        {"battery_percentage": 100.5},
+        {"battery_capacity_kwh": 0},
+        {"target_soc_percent": 0},
+        {"target_soc_percent": 100.5},
+    ],
+)
+def test_reservation_create_invalid_telemetry(overrides):
+    payload = {
+        "location_id": "L",
+        "evse_uid": "E",
+        "booking_slot": {"arrival_time": "2026-10-07T10:00:00Z", "expiry_date": "2026-10-07T11:00:00Z"},
+    }
+    payload.update(overrides)
+    with pytest.raises(ValidationError):
+        ReservationCreate(**payload)
+
+
+# The PUT body requires a valid booking slot.
+def test_reservation_replace_requires_slot():
+    with pytest.raises(ValidationError):
+        ReservationReplace()
+    with pytest.raises(ValidationError):
+        ReservationReplace(booking_slot={"arrival_time": "2026-10-07T11:00:00Z", "expiry_date": "2026-10-07T10:00:00Z"})
+
+
+# The auto request validates the optional ETA inputs.
+@pytest.mark.parametrize("speed", [0, -5, 200.5])
+def test_auto_request_invalid_speed(speed):
+    with pytest.raises(ValidationError):
+        AutoRerouteRequest(
+            truck={"latitude": 48, "longitude": 11, "battery_percentage": 50},
+            reservation_id="R",
+            average_speed_kmh=speed,
+        )
+
+
+# The curtailment action exists in the action enum.
+def test_auto_action_contains_curtailment():
+    assert AutoAction.REBOOKED_WITH_CURTAILMENT.value == "REBOOKED_WITH_CURTAILMENT"

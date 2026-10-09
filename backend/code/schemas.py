@@ -221,6 +221,19 @@ class ReservationCreate(BaseModel):
     evse_uid: str
     truck_id: str | None = None
     booking_slot: BookingSlot
+    battery_percentage: float | None = Field(
+        None, ge=0.0, le=100.0, description="Expected state of charge on arrival (%)"
+    )
+    battery_capacity_kwh: float | None = Field(
+        None, gt=0.0, description="Total battery capacity of the truck (kWh)"
+    )
+    target_soc_percent: float = Field(
+        80.0, gt=0.0, le=100.0, description="State of charge the truck will charge up to (%)"
+    )
+
+
+class ReservationReplace(BaseModel):
+    booking_slot: BookingSlot
 
 
 class ReservationUpdate(BaseModel):
@@ -249,6 +262,10 @@ class Reservation(BaseModel):
     truck_id: str | None = None
     status: Literal["ACTIVE", "CANCELLED"]
     booking_slot: BookingSlot
+    battery_percentage: float | None = None
+    battery_capacity_kwh: float | None = None
+    target_soc_percent: float = 80.0
+    curtailment_booked: bool = False
     last_updated: datetime
 
 
@@ -292,6 +309,7 @@ class AutoAction(str, Enum):
     NO_ACTION = "NO_ACTION"
     SHIFTED = "SHIFTED"
     REBOOKED = "REBOOKED"
+    REBOOKED_WITH_CURTAILMENT = "REBOOKED_WITH_CURTAILMENT"
 
 
 class AutoRerouteRequest(BaseModel):
@@ -299,6 +317,12 @@ class AutoRerouteRequest(BaseModel):
     reservation_id: str = Field(..., min_length=1)
     delay_minutes: int = Field(0, ge=0, le=1440)
     new_reservation_id: str | None = Field(None, min_length=1)
+    average_speed_kmh: float | None = Field(
+        None, gt=0.0, le=200.0, description="Used to estimate the ETA delay from the distance"
+    )
+    as_of: datetime | None = Field(
+        None, description="Reference time for the ETA estimate (defaults to now, UTC)"
+    )
 
 
 class AutoRerouteResponse(BaseModel):
@@ -310,4 +334,59 @@ class AutoRerouteResponse(BaseModel):
     active_reservation: Reservation
     truck_summary: TruckSummary
     charging_station: RecommendedChargingStation
+    applied_delay_minutes: int = 0
+    eta_delay_minutes: int | None = None
+    smart_charging: SmartChargingProfileResponse | None = None
     message: str
+
+
+class IncomingTruck(BaseModel):
+    reservation_id: str
+    truck_id: str | None = None
+    evse_uid: str
+    arrival_time: datetime
+    arrival_soc_percent: float
+    target_soc_percent: float
+    battery_capacity_kwh: float
+    energy_kwh: float
+    power_kw: float
+    charge_minutes: float
+    telemetry_assumed: bool
+
+
+class DemandBucket(BaseModel):
+    start: datetime
+    demand_kw: float
+    shed_kw: float = 0.0
+
+
+class StationDemand(BaseModel):
+    location_id: str
+    station_name: str
+    capacity_kw: float
+    incoming_trucks: int
+    energy_kwh: float
+    peak_demand_kw: float
+    peak_utilization_pct: float
+    over_capacity: bool
+    trucks: list[IncomingTruck]
+    buckets: list[DemandBucket]
+
+
+class DemandTotals(BaseModel):
+    incoming_trucks: int
+    energy_kwh: float
+    peak_demand_kw: float
+    peak_time: datetime | None = None
+    grid_limit_kw: float | None = None
+    over_limit_buckets: int
+    max_shed_kw: float
+    buckets: list[DemandBucket]
+
+
+class DemandForecastResponse(BaseModel):
+    generated_at: datetime
+    horizon_hours: int
+    bucket_minutes: int
+    stations: list[StationDemand]
+    totals: DemandTotals

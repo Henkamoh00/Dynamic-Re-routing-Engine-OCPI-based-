@@ -1,19 +1,28 @@
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException, Query, status
 from schemas import (
     AutoRerouteRequest,
     AutoRerouteResponse,
     ConnectorType,
+    DemandForecastResponse,
     EVSEStatusResponse,
     LocationSummary,
     RerouteResponse,
     Reservation,
     ReservationCreate,
+    ReservationReplace,
     ReservationUpdate,
     SmartChargingProfileRequest,
     SmartChargingProfileResponse,
     TruckStatus,
 )
-from services import orchestration_service, reservation_service, smart_charging_service
+from services import (
+    demand_service,
+    orchestration_service,
+    reservation_service,
+    smart_charging_service,
+)
 from services.cpo_repository import DataSourceError, find_evse_by_uid
 from services.routing_service import (
     TRUCK_CONNECTOR_STANDARD,
@@ -42,6 +51,8 @@ def auto_reroute(payload: AutoRerouteRequest) -> AutoRerouteResponse:
     except reservation_service.ReservationNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except reservation_service.ReservationConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except smart_charging_service.ChargingProfileTargetError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     except NoChargerAvailableError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
@@ -106,6 +117,40 @@ def update_reservation(reservation_id: str, payload: ReservationUpdate) -> Reser
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except reservation_service.ReservationConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+
+@router.put("/reservations/{reservation_id}", response_model=Reservation)
+def replace_reservation(reservation_id: str, payload: ReservationReplace) -> Reservation:
+    try:
+        return reservation_service.replace_booking_slot(reservation_id, payload.booking_slot)
+    except reservation_service.ReservationNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except reservation_service.ReservationConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+
+@router.get("/reservations", response_model=list[Reservation])
+def list_reservations(active_only: bool = Query(False)) -> list[Reservation]:
+    return reservation_service.list_reservations(active_only=active_only)
+
+
+@router.get("/cpo/demand-forecast", response_model=DemandForecastResponse)
+def demand_forecast(
+    horizon_hours: int = Query(12, ge=1, le=72),
+    bucket_minutes: int = Query(15, ge=5, le=60),
+    as_of: datetime | None = Query(None),
+    grid_limit_kw: float | None = Query(None, gt=0.0),
+) -> DemandForecastResponse:
+    if 60 % bucket_minutes != 0:
+        raise HTTPException(
+            status_code=422, detail="bucket_minutes must divide 60 (5, 6, 10, 12, 15, 20, 30 or 60)."
+        )
+    try:
+        return demand_service.compute_demand_forecast(
+            horizon_hours, bucket_minutes, as_of, grid_limit_kw
+        )
+    except DataSourceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
 
 
 @router.post("/smart-charging/profile", response_model=SmartChargingProfileResponse)

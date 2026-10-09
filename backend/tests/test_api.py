@@ -343,3 +343,122 @@ def test_health_data_live_flag_and_error(client, tmp_path, monkeypatch):
     assert client.get("/health/data").json()["is_live"] is True
     monkeypatch.setenv("OCPI_DATA_FILE", str(tmp_path / "missing.json"))
     assert client.get("/health/data").status_code == 503
+
+# Builds a reservation body for the API tests.
+def reservation_body(evse_uid="EVSE_MUN_1", location_id="LOC_MUNICH_SOUTH", hours=1, **extra):
+    from datetime import datetime, timedelta, timezone
+
+    arrival = datetime(2026, 10, 9, 8, 0, tzinfo=timezone.utc) + timedelta(hours=hours)
+    body = {
+        "location_id": location_id,
+        "evse_uid": evse_uid,
+        "booking_slot": {
+            "arrival_time": arrival.isoformat(),
+            "expiry_date": (arrival + timedelta(hours=2)).isoformat(),
+        },
+    }
+    body.update(extra)
+    return body
+
+
+# PUT replaces the booking slot of an existing reservation.
+def test_put_reservation_replaces_slot(client):
+    client.post("/api/v1/reservations/R1", json=reservation_body())
+    new_body = reservation_body(hours=5)
+    response = client.put("/api/v1/reservations/R1", json={"booking_slot": new_body["booking_slot"]})
+    assert response.status_code == 200
+    assert response.json()["booking_slot"]["arrival_time"].startswith("2026-10-09T13:00")
+
+
+# PUT maps missing, cancelled and invalid requests to 404, 409 and 422.
+def test_put_reservation_errors(client):
+    slot = reservation_body()["booking_slot"]
+    assert client.put("/api/v1/reservations/NOPE", json={"booking_slot": slot}).status_code == 404
+    client.post("/api/v1/reservations/R1", json=reservation_body())
+    client.patch("/api/v1/reservations/R1", json={"status": "CANCELLED"})
+    assert client.put("/api/v1/reservations/R1", json={"booking_slot": slot}).status_code == 409
+    assert client.put("/api/v1/reservations/R1", json={}).status_code == 422
+
+
+# GET lists reservations and supports the active_only filter.
+def test_list_reservations_endpoint(client):
+    assert client.get("/api/v1/reservations").json() == []
+    client.post("/api/v1/reservations/R1", json=reservation_body())
+    client.post("/api/v1/reservations/R2", json=reservation_body("EVSE_STR_1", "LOC_STUTTGART_EAST"))
+    client.patch("/api/v1/reservations/R2", json={"status": "CANCELLED"})
+    assert len(client.get("/api/v1/reservations").json()) == 2
+    active = client.get("/api/v1/reservations", params={"active_only": True}).json()
+    assert [item["reservation_id"] for item in active] == ["R1"]
+
+
+# Telemetry sent when creating a reservation is returned in the response.
+def test_create_reservation_with_telemetry(client):
+    body = reservation_body(battery_percentage=15, battery_capacity_kwh=400, target_soc_percent=90)
+    data = client.post("/api/v1/reservations/R1", json=body).json()
+    assert data["battery_percentage"] == 15 and data["battery_capacity_kwh"] == 400
+    assert data["target_soc_percent"] == 90 and data["curtailment_booked"] is False
+
+
+# The demand forecast endpoint returns the structure and the computed peak.
+def test_demand_forecast_endpoint(client):
+    body = reservation_body(battery_percentage=20, battery_capacity_kwh=300, target_soc_percent=80)
+    client.post("/api/v1/reservations/R1", json=body)
+    response = client.get(
+        "/api/v1/cpo/demand-forecast",
+        params={"as_of": "2026-10-09T08:00:00Z", "grid_limit_kw": 200},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["stations"][0]["location_id"] == "LOC_MUNICH_SOUTH"
+    assert data["totals"]["peak_demand_kw"] == 320.0
+    assert data["totals"]["over_limit_buckets"] == 2
+    assert data["totals"]["grid_limit_kw"] == 200
+
+
+# The demand forecast validates its query parameters.
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"horizon_hours": 0},
+        {"horizon_hours": 73},
+        {"bucket_minutes": 4},
+        {"bucket_minutes": 61},
+        {"bucket_minutes": 7},
+        {"grid_limit_kw": 0},
+    ],
+)
+def test_demand_forecast_invalid_params(client, params):
+    assert client.get("/api/v1/cpo/demand-forecast", params=params).status_code == 422
+
+
+# An empty store gives an empty forecast with a successful response.
+def test_demand_forecast_empty(client):
+    data = client.get("/api/v1/cpo/demand-forecast").json()
+    assert data["stations"] == [] and data["totals"]["incoming_trucks"] == 0
+
+
+# The auto endpoint throttles a charging EVSE and rebooks when no charger is free.
+def test_reroute_auto_curtailment_over_http(client, live_data):
+    from factories import set_evse_status
+
+    client.post("/api/v1/reservations/RES_C", json=reservation_body())
+    for uid in ["EVSE_MUN_1", "EVSE_STR_1", "EVSE_NUR_1", "EVSE_ULM_1", "EVSE_ING_1", "EVSE_KAR_1"]:
+        set_evse_status(live_data, uid, "BLOCKED")
+    truck = {"latitude": 48.1, "longitude": 11.6, "battery_percentage": 80}
+    body = client.post("/api/v1/reroute/auto", json={"truck": truck, "reservation_id": "RES_C"}).json()
+    assert body["action"] == "REBOOKED_WITH_CURTAILMENT"
+    assert body["smart_charging"]["freed_capacity_kw"] == 160.0
+    assert body["active_reservation"]["curtailment_booked"] is True
+
+
+# The auto endpoint reports the ETA delay and the applied delay.
+def test_reroute_auto_eta_over_http(client, live_data):
+    client.post("/api/v1/reservations/RES_E", json=reservation_body())
+    truck = {"latitude": 48.1, "longitude": 11.6, "battery_percentage": 80}
+    response = client.post(
+        "/api/v1/reroute/auto",
+        json={"truck": truck, "reservation_id": "RES_E", "average_speed_kmh": 1.0, "as_of": "2026-10-09T08:00:00Z"},
+    )
+    body = response.json()
+    assert response.status_code == 200
+    assert body["eta_delay_minutes"] > 0 and body["applied_delay_minutes"] == body["eta_delay_minutes"]

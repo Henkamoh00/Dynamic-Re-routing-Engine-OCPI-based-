@@ -1,4 +1,4 @@
-from typing import List, Optional, Sequence, Tuple
+from collections.abc import Sequence
 
 from schemas import (
     ConnectorType,
@@ -40,7 +40,7 @@ def calculate_arrival_soc(truck: TruckStatus, distance_km: float) -> float:
 
 def best_connector(
     evse: OCPIEVSE, connector_standard: ConnectorType
-) -> Optional[OCPIConnector]:
+) -> OCPIConnector | None:
     matching = [c for c in evse.connectors if c.standard == connector_standard]
     if not matching:
         return None
@@ -62,7 +62,7 @@ def build_station_view(
     evse: OCPIEVSE,
     connector: OCPIConnector,
     distance_km: float,
-) -> Tuple[RecommendedChargingStation, TruckSummary]:
+) -> tuple[RecommendedChargingStation, TruckSummary]:
     max_range_km = calculate_max_range_km(truck)
     arrival_soc = calculate_arrival_soc(truck, distance_km)
     station = RecommendedChargingStation(
@@ -81,13 +81,13 @@ def build_station_view(
 
 def find_best_charger(
     truck: TruckStatus,
-    locations: Optional[Sequence[OCPILocation]] = None,
+    locations: Sequence[OCPILocation] | None = None,
     connector_standard: ConnectorType = TRUCK_CONNECTOR_STANDARD,
 ) -> RerouteResponse:
     source = locations if locations is not None else get_locations()
     max_range_km = calculate_max_range_km(truck)
 
-    best: Optional[Tuple[float, int, OCPILocation, OCPIEVSE, OCPIConnector]] = None
+    best: tuple[float, int, OCPILocation, OCPIEVSE, OCPIConnector] | None = None
 
     for location in source:
         distance_km = distance_to_location(truck.latitude, truck.longitude, location)
@@ -126,8 +126,8 @@ def search_locations(
     longitude: float,
     radius_km: float,
     connector_standard: ConnectorType = TRUCK_CONNECTOR_STANDARD,
-) -> List[LocationSummary]:
-    results: List[LocationSummary] = []
+) -> list[LocationSummary]:
+    results: list[LocationSummary] = []
 
     for location in get_locations():
         if not location.publish:
