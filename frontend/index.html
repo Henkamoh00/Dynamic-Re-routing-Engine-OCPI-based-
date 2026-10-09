@@ -58,6 +58,18 @@
   pre { background: var(--bg); border: 1px solid var(--line); padding: 10px; border-radius: 8px; overflow: auto; max-height: 280px; font-size: 12px; }
   .log { margin-top: 12px; max-height: 220px; overflow: auto; font-size: 12px; color: var(--muted); }
   .log div { padding: 3px 0; border-bottom: 1px dashed var(--line); }
+  .badge.REBOOKED_WITH_CURTAILMENT { color: var(--warn); }
+  .badge.NO_ACTION { color: var(--muted); }
+  .chart { margin-top: 12px; }
+  .chart svg { width: 100%; height: auto; display: block; }
+  .chart .axis { stroke: var(--line); } .chart .lbl { fill: var(--muted); font-size: 11px; }
+  .chart .limit { stroke: var(--bad); stroke-dasharray: 6 4; stroke-width: 2; }
+  .chart .limit-lbl { fill: var(--bad); font-size: 11px; font-weight: 600; }
+  .chart rect.m { fill: var(--accent); } .chart rect.m.over { fill: var(--warn); }
+  .chart rect.hit { fill: transparent; }
+  .tip { position: fixed; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.2); z-index: 5; }
+  .viewtoggle { display: flex; gap: 4px; margin-top: 12px; }
+  .viewtoggle button { padding: 3px 10px; font-size: 12px; }
   .hidden { display: none; }
 </style>
 </head>
@@ -88,6 +100,8 @@
     <nav class="tabs" id="tabs">
       <button data-tab="reroute" class="on">Reroute</button>
       <button data-tab="auto">Reservation &amp; auto-reroute</button>
+      <button data-tab="resv">Reservations</button>
+      <button data-tab="demand">CPO demand</button>
       <button data-tab="board">Station board</button>
       <button data-tab="smart">Smart charging</button>
     </nav>
@@ -106,14 +120,39 @@
         <div><label>Reported delay (min)</label><input id="delay" type="number" min="0" max="1440" value="0"></div>
       </div>
       <div class="row">
+        <div><label>Average speed (km/h, ETA delay)</label><input id="speed" type="number" min="1" max="200" placeholder="optional"></div>
+        <div><label>Arrival SoC (%) stored on booking</label><input id="r-soc" type="number" min="0" max="100" value="20"></div>
+        <div><label>Capacity (kWh)</label><input id="r-cap" type="number" min="1" value="300"></div>
+        <div><label>Target SoC (%)</label><input id="r-target" type="number" min="1" max="100" value="80"></div>
+      </div>
+      <div class="row">
         <button id="btn-create">1. Create reservation</button>
         <button id="btn-auto">2. Run auto-reroute</button>
+        <button id="btn-put" class="ghost">PUT slot +2 h</button>
         <button id="btn-shift" class="ghost">PATCH shift +15 min</button>
         <button id="btn-cancel" class="danger">PATCH cancel</button>
       </div>
       <p style="color:var(--muted);margin:10px 0 0">Tip: run the simulator, create a reservation, wait until its station goes OUTOFORDER or BLOCKED, then run auto-reroute. Or enter a delay above 60 minutes to force a rebook.</p>
       <div id="out-auto"></div>
       <div class="log" id="log"></div>
+    </div>
+
+    <div class="card hidden" id="tab-resv">
+      <h2>GET /api/v1/reservations</h2>
+      <label style="display:flex;gap:6px;align-items:center;margin:0"><input id="active-only" type="checkbox" style="width:auto"> Active only</label>
+      <div class="row"><button id="btn-resv">Refresh reservations</button></div>
+      <div id="out-resv"></div>
+    </div>
+
+    <div class="card hidden" id="tab-demand">
+      <h2>GET /api/v1/cpo/demand-forecast</h2>
+      <div class="row">
+        <div><label>Horizon (hours)</label><input id="d-horizon" type="number" min="1" max="72" value="12"></div>
+        <div><label>Bucket (minutes)</label><select id="d-bucket"><option>5</option><option>10</option><option selected>15</option><option>30</option><option>60</option></select></div>
+        <div><label>Grid limit (kW, optional)</label><input id="d-limit" type="number" min="1" placeholder="none"></div>
+        <button id="btn-demand">Compute forecast</button>
+      </div>
+      <div id="out-demand"></div>
     </div>
 
     <div class="card hidden" id="tab-board">
@@ -252,6 +291,8 @@ async function createReservation() {
   const start = new Date(Date.now() + 3600e3), end = new Date(Date.now() + 2 * 3600e3);
   const res = await api("POST", "/reservations/" + encodeURIComponent($("res-id").value), {
     location_id: loc, evse_uid: evse, truck_id: "TRUCK_1",
+    battery_percentage: parseFloat($("r-soc").value), battery_capacity_kwh: parseFloat($("r-cap").value),
+    target_soc_percent: parseFloat($("r-target").value),
     booking_slot: { arrival_time: start.toISOString(), expiry_date: end.toISOString() },
   });
   if (!res.ok) { $("out-auto").innerHTML = errorBanner(res); log("create failed: HTTP " + res.status); return; }
@@ -269,22 +310,124 @@ async function patchReservation(body, label) {
 async function runAuto() {
   const res = await api("POST", "/reroute/auto", {
     truck: truck(), reservation_id: $("res-id").value, delay_minutes: parseInt($("delay").value || "0", 10),
+    ...($("speed").value ? { average_speed_kmh: parseFloat($("speed").value) } : {}),
   });
   if (!res.ok) { $("out-auto").innerHTML = errorBanner(res); log("auto failed: HTTP " + res.status); return; }
   const d = res.data, s = d.charging_station;
   const reasons = d.conflict_reasons.length ? d.conflict_reasons.map((r) => `<span class="badge">${esc(r)}</span>`).join(" ") : "none";
   $("out-auto").innerHTML = `
-    <div class="banner ${d.action === "REBOOKED" ? "warn" : "ok"}"><span class="badge ${esc(d.action)}">${esc(d.action)}</span> ${esc(d.message)}</div>
+    <div class="banner ${d.action.startsWith("REBOOKED") ? "warn" : "ok"}"><span class="badge ${esc(d.action)}">${esc(d.action)}</span> ${esc(d.message)}</div>
     <div class="grid">
       ${kpi("Conflict", d.conflict_detected ? "YES" : "no")}${kpi("Station", s.station_name)}${kpi("Power", s.max_power_kw + " kW")}
       ${kpi("Distance", s.distance_km + " km")}${kpi("SoC on arrival", d.truck_summary.estimated_battery_at_arrival + " %")}
+      ${kpi("Applied delay", d.applied_delay_minutes + " min")}${kpi("ETA delay", d.eta_delay_minutes === null ? "n/a" : d.eta_delay_minutes + " min")}
     </div>
+    ${d.smart_charging ? `<div class="banner warn">⚡ Smart charging: throttled ${esc(d.smart_charging.original_max_power_kw)} → ${esc(d.smart_charging.curtailed_max_power_kw)} kW (freed ${esc(d.smart_charging.freed_capacity_kw)} kW)</div>` : ""}
     <p>Reasons: ${reasons}</p>
     <table><tr><th></th><th>Reservation</th></tr>
       <tr><td>Previous</td><td>${resLine(d.previous_reservation)}</td></tr>
       <tr><td>Active</td><td>${resLine(d.active_reservation)}</td></tr></table>${rawJson(d)}`;
   log("auto-reroute → " + d.action + " (" + d.active_reservation.reservation_id + ")");
-  if (d.action === "REBOOKED") $("res-id").value = d.active_reservation.reservation_id;
+  if (d.action.startsWith("REBOOKED")) $("res-id").value = d.active_reservation.reservation_id;
+}
+
+// Replaces the booking slot of the current reservation (PUT) with a window two hours later.
+async function putReservation() {
+  const start = new Date(Date.now() + 3 * 3600e3), end = new Date(Date.now() + 4 * 3600e3);
+  const res = await api("PUT", "/reservations/" + encodeURIComponent($("res-id").value), {
+    booking_slot: { arrival_time: start.toISOString(), expiry_date: end.toISOString() },
+  });
+  if (!res.ok) { $("out-auto").innerHTML = errorBanner(res); log("PUT failed: HTTP " + res.status); return; }
+  $("out-auto").innerHTML = `<div class="banner ok">Slot replaced</div><div class="banner">${resLine(res.data)}</div>${rawJson(res.data)}`;
+  log("PUT slot → " + res.data.reservation_id);
+}
+
+// Loads and renders the reservations table.
+async function loadReservations() {
+  const q = $("active-only").checked ? "?active_only=true" : "";
+  const res = await api("GET", "/reservations" + q);
+  if (!res.ok) { $("out-resv").innerHTML = errorBanner(res); return; }
+  const rows = res.data.map((r) => `<tr><td>${esc(r.reservation_id)}</td><td><span class="badge ${esc(r.status)}">${esc(r.status)}</span></td>
+    <td>${esc(r.location_id)}<br><small>${esc(r.evse_uid)}</small></td>
+    <td>${esc(new Date(r.booking_slot.arrival_time).toLocaleString())}</td>
+    <td>${r.battery_percentage ?? "–"} → ${esc(r.target_soc_percent)} %</td>
+    <td>${r.curtailment_booked ? "⚡ throttled" : ""}</td></tr>`).join("");
+  $("out-resv").innerHTML = rows
+    ? `<table><tr><th>ID</th><th>Status</th><th>Station</th><th>Arrival</th><th>SoC</th><th>Note</th></tr>${rows}</table>`
+    : `<div class="banner">No reservations yet.</div>`;
+}
+
+let demandData = null, demandView = "chart";
+
+// Formats a timestamp as HH:MM.
+function hm(iso) { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+
+// Fetches the demand forecast and renders it.
+async function loadDemand() {
+  const limit = $("d-limit").value;
+  const q = `?horizon_hours=${$("d-horizon").value}&bucket_minutes=${$("d-bucket").value}` + (limit ? `&grid_limit_kw=${limit}` : "");
+  const res = await api("GET", "/cpo/demand-forecast" + q);
+  if (!res.ok) { $("out-demand").innerHTML = errorBanner(res); return; }
+  demandData = res.data;
+  renderDemand();
+}
+
+// Builds the inline SVG bar chart of total demand with an optional grid-limit line.
+function demandChart(totals) {
+  const W = 760, H = 260, L = 48, R = 12, T = 14, B = 28;
+  const b = totals.buckets, n = b.length;
+  const max = Math.max(1, totals.grid_limit_kw || 0, ...b.map((x) => x.demand_kw)) * 1.1;
+  const bw = (W - L - R) / n, y = (v) => T + (H - T - B) * (1 - v / max);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Total charging demand per time bucket in kW">`;
+  for (let i = 0; i <= 4; i++) {
+    const v = (max / 4) * i;
+    svg += `<line class="axis" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="lbl" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${Math.round(v)}</text>`;
+  }
+  const step = Math.ceil(n / 8);
+  b.forEach((x, i) => {
+    const over = totals.grid_limit_kw && x.demand_kw > totals.grid_limit_kw;
+    const h = (H - T - B) * (x.demand_kw / max);
+    svg += `<rect class="m${over ? " over" : ""}" x="${L + i * bw + 1}" y="${y(x.demand_kw)}" width="${Math.max(1, bw - 2)}" height="${h}" rx="3"/>`;
+    svg += `<rect class="hit" data-i="${i}" x="${L + i * bw}" y="${T}" width="${bw}" height="${H - T - B}"/>`;
+    if (i % step === 0) svg += `<text class="lbl" x="${L + i * bw + bw / 2}" y="${H - 8}" text-anchor="middle">${hm(x.start)}</text>`;
+  });
+  if (totals.grid_limit_kw) {
+    svg += `<line class="limit" x1="${L}" x2="${W - R}" y1="${y(totals.grid_limit_kw)}" y2="${y(totals.grid_limit_kw)}"/>
+      <text class="limit-lbl" x="${W - R}" y="${y(totals.grid_limit_kw) - 5}" text-anchor="end">Grid limit ${totals.grid_limit_kw} kW</text>`;
+  }
+  return svg + `</svg>`;
+}
+
+// Renders KPIs, the chart (or its table view) and the per-station table.
+function renderDemand() {
+  const d = demandData, t = d.totals;
+  const warn = t.over_limit_buckets
+    ? `<div class="banner warn">⚠ Grid limit exceeded in ${t.over_limit_buckets} bucket(s); up to ${t.max_shed_kw} kW must be shed.</div>` : "";
+  const view = demandView === "chart"
+    ? `<div class="chart">${demandChart(t)}</div>`
+    : `<table><tr><th>Start</th><th>Demand (kW)</th><th>Shed (kW)</th></tr>${t.buckets.map((x) => `<tr><td>${hm(x.start)}</td><td>${x.demand_kw}</td><td>${x.shed_kw}</td></tr>`).join("")}</table>`;
+  const stations = d.stations.map((s) => `<tr><td>${esc(s.station_name)}</td><td>${s.incoming_trucks}</td><td>${s.energy_kwh}</td>
+    <td>${s.peak_demand_kw} / ${s.capacity_kw} kW (${s.peak_utilization_pct} %)</td>
+    <td>${s.over_capacity ? '<span class="badge" style="color:var(--bad)">✖ over capacity</span>' : '<span class="badge" style="color:var(--ok)">✔ ok</span>'}</td>
+    <td>${s.trucks.map((x) => esc(x.reservation_id) + (x.telemetry_assumed ? " *" : "")).join(", ")}</td></tr>`).join("");
+  $("out-demand").innerHTML = `
+    <div class="grid">${kpi("Incoming trucks", t.incoming_trucks)}${kpi("Energy", t.energy_kwh + " kWh")}${kpi("Peak demand", t.peak_demand_kw + " kW")}${kpi("Peak time", t.peak_time ? hm(t.peak_time) : "–")}</div>
+    ${warn}
+    <div class="viewtoggle"><button class="${demandView === "chart" ? "" : "ghost"}" data-v="chart">Chart</button><button class="${demandView === "table" ? "" : "ghost"}" data-v="table">Table</button></div>
+    ${view}
+    ${stations ? `<table><tr><th>Station</th><th>Trucks</th><th>Energy kWh</th><th>Peak</th><th>Status</th><th>Reservations</th></tr>${stations}</table><p style="color:var(--muted)">* telemetry assumed (defaults used)</p>` : `<div class="banner">No incoming trucks in this horizon.</div>`}
+    ${rawJson(d)}`;
+  document.querySelectorAll("#out-demand .viewtoggle button").forEach((x) => { x.onclick = () => { demandView = x.dataset.v; renderDemand(); }; });
+  document.querySelectorAll("#out-demand rect.hit").forEach((r) => {
+    r.onmousemove = (e) => {
+      const x = t.buckets[+r.dataset.i];
+      let tip = $("tip");
+      if (!tip) { tip = document.createElement("div"); tip.id = "tip"; tip.className = "tip"; document.body.appendChild(tip); }
+      tip.innerHTML = `<b>${hm(x.start)}</b><br>${x.demand_kw} kW` + (x.shed_kw ? `<br>shed ${x.shed_kw} kW` : "");
+      tip.style.left = e.clientX + 12 + "px"; tip.style.top = e.clientY + 12 + "px";
+    };
+    r.onmouseleave = () => { const tip = $("tip"); if (tip) tip.remove(); };
+  });
 }
 
 let lastBoard = null;
@@ -391,8 +534,9 @@ function init() {
   document.querySelectorAll("#tabs button").forEach((b) => {
     b.onclick = () => {
       document.querySelectorAll("#tabs button").forEach((x) => x.classList.toggle("on", x === b));
-      ["reroute", "auto", "board", "smart"].forEach((t) => $("tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
+      ["reroute", "auto", "resv", "demand", "board", "smart"].forEach((t) => $("tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
       if (b.dataset.tab === "board") refreshBoard();
+      if (b.dataset.tab === "resv") loadReservations();
     };
   });
   $("btn-reroute").onclick = doReroute;
@@ -400,6 +544,10 @@ function init() {
   $("btn-auto").onclick = runAuto;
   $("btn-shift").onclick = () => patchReservation({ delay_minutes: 15 }, "Shifted +15 min");
   $("btn-cancel").onclick = () => patchReservation({ status: "CANCELLED" }, "Cancelled");
+  $("btn-put").onclick = putReservation;
+  $("btn-resv").onclick = loadReservations;
+  $("active-only").onchange = loadReservations;
+  $("btn-demand").onclick = loadDemand;
   $("btn-board").onclick = refreshBoard;
   $("btn-smart").onclick = doSmart;
   setInterval(pollLive, 3000);
