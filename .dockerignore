@@ -1,0 +1,25 @@
+# Version control and editor files
+.git
+.gitignore
+.github
+.idea
+.vscode
+
+# Python artefacts and local environments
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+# Local secrets and compose variables
+**/.env
+**/.env.*
+
+# Generated data: the live file is created at run time by the simulator
+backend/data/OCPI_data.live.json
+**/*.tmp
+
+# Documentation is not needed in the image
+README.md

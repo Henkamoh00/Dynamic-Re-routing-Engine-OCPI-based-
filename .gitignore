@@ -1,19 +1,12 @@
 *.tmp
 .venv
-env.*
+.env
+.env.*
 *.env
 env/
-env/*
-*/env
 .vscode
-__pycache__/
 __pycache__/
 .pytest_cache
 
-
-
-
-
-
 docs/instructions.md
-data/OCPI_data.live.json
+**/data/OCPI_data.live.json

@@ -1,0 +1,46 @@
+# FleetRoute-OCPI container stack.
+#
+# Static data:  docker compose up --build
+# Live data:    set OCPI_DATA_FILE=/var/lib/ocpi/OCPI_data.live.json (shell or .env), then
+#               docker compose --profile simulator up --build
+# Tests:        docker compose --profile test run --rm tests
+
+name: fleetroute-ocpi
+
+x-backend: &backend
+  image: fleetroute-ocpi:latest
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: runtime
+
+services:
+  api:
+    <<: *backend
+    ports:
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-8000}:8000"
+    environment:
+      OCPI_DATA_FILE: ${OCPI_DATA_FILE:-}
+    volumes:
+      - ocpi-live:/var/lib/ocpi
+    restart: unless-stopped
+
+  simulator:
+    <<: *backend
+    profiles: ["simulator"]
+    command: ["python", "scripts/simulate_cpo_updates.py", "--reset", "--ticks", "${SIM_TICKS:-1000}", "--interval", "${SIM_INTERVAL:-10}", "--seed", "${SIM_SEED:-7}", "--output", "${SIM_OUTPUT:-/var/lib/ocpi/OCPI_data.live.json}"]
+    volumes:
+      - ocpi-live:/var/lib/ocpi
+    restart: "no"
+
+  tests:
+    image: fleetroute-ocpi:test
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    profiles: ["test"]
+    restart: "no"
+
+volumes:
+  ocpi-live:
